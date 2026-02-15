@@ -3,180 +3,161 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forest Fire Executive Dashboard</title>
+    <title>ศูนย์ข้อมูลไฟป่าอัจฉริยะ</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
-        body { background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); font-family: 'Plus Jakarta Sans', sans-serif; }
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=Sarabun:wght@300;400;700&display=swap');
+        body { background: #f8fafc; font-family: 'Sarabun', 'Plus Jakarta Sans', sans-serif; color: #1e293b; }
         #map { height: 500px; width: 100%; border-radius: 1.5rem; }
-        .kpi-card { transition: transform 0.2s; }
-        .kpi-card:hover { transform: translateY(-5px); }
+        .dashboard-card { background: white; border-radius: 2rem; border: 1px solid #e2e8f0; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); padding: 2rem; transition: all 0.3s; }
+        .dashboard-card:hover { shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+        .kpi-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
     </style>
 </head>
-<body class="p-4 md:p-8">
-    <div class="max-w-[1440px] mx-auto">
+<body class="p-4 md:p-10 text-slate-800">
+    <div class="max-w-[1600px] mx-auto">
         
-        <div class="grid grid-cols-12 gap-6 mb-8">
-            <div class="col-span-12 lg:col-span-5 flex flex-col justify-center">
-                <h1 class="text-4xl font-extrabold text-slate-900 tracking-tight mb-2">สถิติไฟป่าระดับประเทศ</h1>
-                <p class="text-slate-500 text-lg">ฐานข้อมูลปี พ.ศ. 2542 - 2566</p>
+        <header class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6">
+            <div>
+                <h1 class="text-4xl font-black tracking-tight text-slate-900 mb-2">สถิติวิเคราะห์ไฟป่าระดับประเทศ</h1>
+                <p class="text-slate-500 font-medium text-lg">ฐานข้อมูลภาพรวมรายปี รายจังหวัด และรายภูมิภาค</p>
             </div>
-            
-            <div class="col-span-12 md:col-span-6 lg:col-span-3">
-                <div class="kpi-card bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
-                    <div class="flex items-center gap-4 mb-2 text-orange-500 uppercase text-xs font-bold tracking-widest">
-                        <span>🔥 จำนวนการเกิดไฟป่ารวม</span>
-                    </div>
+            <div class="flex flex-wrap gap-4">
+                <div class="bg-white border-l-8 border-orange-500 px-8 py-5 rounded-2xl shadow-sm min-w-[220px]">
+                    <p class="kpi-label text-orange-600">จำนวนครั้งที่เกิดไฟรวม</p>
                     <div class="flex items-baseline gap-2">
-                        <span id="total-times" class="text-4xl font-black text-slate-800">0</span>
-                        <span class="text-slate-400 font-semibold">ครั้ง</span>
+                        <span id="total-times" class="text-3xl font-black">0</span>
+                        <span class="text-slate-400 font-bold text-sm text-sarabun">ครั้ง</span>
+                    </div>
+                </div>
+                <div class="bg-slate-900 px-8 py-5 rounded-2xl shadow-xl min-w-[220px]">
+                    <p class="kpi-label text-slate-400">พื้นที่ความเสียหายรวม</p>
+                    <div class="flex items-baseline gap-2">
+                        <span id="total-rai" class="text-3xl font-black text-white">0</span>
+                        <span class="text-slate-400 font-bold text-sm">ไร่</span>
                     </div>
                 </div>
             </div>
+        </header>
 
-            <div class="col-span-12 md:col-span-6 lg:col-span-4">
-                <div class="kpi-card bg-gradient-to-br from-red-500 to-orange-600 p-6 rounded-3xl shadow-xl border border-red-200">
-                    <div class="flex items-center gap-4 mb-2 text-red-100 uppercase text-xs font-bold tracking-widest">
-                        <span>🏔️ พื้นที่ความเสียหายรวม</span>
-                    </div>
-                    <div class="flex items-baseline gap-2 text-white">
-                        <span id="total-rai" class="text-4xl font-black">0</span>
-                        <span class="text-red-100 font-semibold italic">ไร่</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-12 gap-6 mb-8">
-            <div class="col-span-12 lg:col-span-7 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-lg font-bold text-slate-800">แผนที่ระดับความรุนแรงรายจังหวัด</h3>
-                    <div class="flex gap-2 text-[10px] uppercase font-bold text-slate-400">
-                        <span class="px-2 py-1 bg-yellow-100 rounded text-yellow-700">เสี่ยงต่ำ</span>
-                        <span class="px-2 py-1 bg-red-100 rounded text-red-700">เสี่ยงสูง</span>
-                    </div>
-                </div>
+        <div class="grid grid-cols-12 gap-8 mb-8">
+            <div class="col-span-12 lg:col-span-7 dashboard-card">
+                <h3 class="text-xl font-bold mb-6 flex items-center gap-2">📍 พื้นที่ประสบภัยรายจังหวัด</h3>
                 <div id="map"></div>
             </div>
-
-            <div class="col-span-12 lg:col-span-5 bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
-                <h3 class="text-lg font-bold text-slate-800 mb-6 italic">Top 10 Critical Provinces</h3>
-                <div class="h-[420px]">
+            <div class="col-span-12 lg:col-span-5 dashboard-card">
+                <h3 class="text-xl font-bold mb-6 italic text-red-600">🏆 10 อันดับจังหวัดวิกฤตที่สุด</h3>
+                <div class="h-[430px]">
                     <canvas id="provinceChart"></canvas>
                 </div>
             </div>
         </div>
 
-        <div class="grid grid-cols-12 gap-6">
-            <div class="col-span-12 lg:col-span-8 bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
-                <h3 class="text-lg font-bold text-slate-800 mb-6">แนวโน้มย้อนหลังรายปี (ครั้ง vs ไร่)</h3>
-                <div class="h-[300px]">
-                    <canvas id="trendChart"></canvas>
+        <div class="dashboard-card mb-8">
+            <h3 class="text-xl font-bold mb-8 italic text-center text-slate-700">📈 แนวโน้มสถานการณ์ไฟป่ารายปี (ภาพรวมประเทศ)</h3>
+            <div class="h-[380px]">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+
+        <div class="dashboard-card">
+            <h3 class="text-2xl font-bold mb-2 text-center text-slate-800">📊 บทวิเคราะห์สัดส่วนรายภูมิภาค</h3>
+            <p class="text-center text-slate-400 text-sm mb-12">เปรียบเทียบเปอร์เซ็นต์ระหว่าง จำนวนครั้ง vs พื้นที่เสียหาย</p>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 px-4 md:px-12">
+                <div class="flex flex-col items-center">
+                    <div class="h-[350px] w-full">
+                        <canvas id="regionTimesChart"></canvas>
+                    </div>
+                    <div class="mt-6 bg-orange-100 text-orange-700 px-6 py-2 rounded-full font-bold text-sm uppercase">สัดส่วนตามจำนวนครั้ง</div>
+                </div>
+                <div class="flex flex-col items-center border-l border-slate-100">
+                    <div class="h-[350px] w-full">
+                        <canvas id="regionRaiChart"></canvas>
+                    </div>
+                    <div class="mt-6 bg-red-100 text-red-700 px-6 py-2 rounded-full font-bold text-sm uppercase">สัดส่วนตามพื้นที่เสียหาย (ไร่)</div>
                 </div>
             </div>
 
-            <div class="col-span-12 lg:col-span-4 bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
-                <h3 class="text-lg font-bold text-slate-800 mb-6">สัดส่วนตามภูมิภาค</h3>
-                <div class="h-[300px]">
-                    <canvas id="regionChart"></canvas>
-                </div>
-            </div>
+            <div id="custom-legend" class="mt-16 flex flex-wrap justify-center gap-4 pt-10 border-t border-slate-100"></div>
         </div>
+
+        <footer class="mt-16 mb-10 text-center text-slate-400 text-sm">
+            แหล่งข้อมูล: สำนักงานสถิติแห่งชาติ | พัฒนาโดย Gemini Dashboard System 2026
+        </footer>
     </div>
 
     <script>
-        // --- 1. Map Color Intensity ---
+        // ฟังก์ชันแปลชื่อภาค
+        const translateRegion = (reg) => {
+            const mapping = {
+                'Northeastern': 'ภาคตะวันออกเฉียงเหนือ',
+                'North': 'ภาคเหนือ',
+                'South': 'ภาคใต้',
+                'Central': 'ภาคกลาง'
+            };
+            return mapping[reg] || reg;
+        };
+
         function getIntensityColor(d) {
-            return d > 100000 ? '#7f1d1d' :
-                   d > 50000  ? '#b91c1c' :
-                   d > 20000  ? '#dc2626' :
-                   d > 10000  ? '#ef4444' :
-                   d > 5000   ? '#f97316' :
-                   d > 2000   ? '#fb923c' :
-                   d > 500    ? '#facc15' :
-                                '#f1f5f9';
+            return d > 100000 ? '#7f1d1d' : d > 50000 ? '#b91c1c' : d > 20000 ? '#dc2626' : d > 5000 ? '#f97316' : '#f1f5f9';
         }
 
         Papa.parse("cleaned_fire_data.csv", {
-            download: true,
-            header: true,
-            dynamicTyping: true,
-            complete: function(res) {
-                renderDashboard(res.data);
-            }
+            download: true, header: true, dynamicTyping: true,
+            complete: function(res) { renderDashboard(res.data); }
         });
 
         function renderDashboard(data) {
             const timesData = data.filter(d => d.UNIT === 'TS');
             const raiData = data.filter(d => d.UNIT === 'RAI');
 
-            // --- KPI Calculation (Integers) ---
-            const sumTimes = Math.round(timesData.reduce((s, d) => s + (d.OBS_VALUE || 0), 0));
-            const sumRai = Math.round(raiData.reduce((s, d) => s + (d.OBS_VALUE || 0), 0));
+            // 1. KPI
+            const sumT = Math.round(timesData.reduce((s, d) => s + (d.OBS_VALUE || 0), 0));
+            const sumR = Math.round(raiData.reduce((s, d) => s + (d.OBS_VALUE || 0), 0));
+            document.getElementById('total-times').innerText = sumT.toLocaleString();
+            document.getElementById('total-rai').innerText = sumR.toLocaleString();
 
-            document.getElementById('total-times').innerText = sumTimes.toLocaleString();
-            document.getElementById('total-rai').innerText = sumRai.toLocaleString();
+            const provStats = {};
+            raiData.forEach(d => { if(d.Province) { const p = d.Province.trim(); if(!provStats[p]) provStats[p] = {rai:0, times:0}; provStats[p].rai += d.OBS_VALUE; } });
+            timesData.forEach(d => { if(d.Province && provStats[d.Province.trim()]) provStats[d.Province.trim()].times += d.OBS_VALUE; });
 
-            // --- 2. Map Render ---
-            const provMapData = {};
-            raiData.forEach(d => { if(d.Province) provMapData[d.Province.trim()] = (provMapData[d.Province.trim()] || 0) + d.OBS_VALUE; });
-
+            // 2. Map
             const map = L.map('map', {zoomControl: false}).setView([13.8, 100.5], 6);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
-
             fetch('https://raw.githubusercontent.com/apisit/thailand.json/master/thailand.json')
-                .then(r => r.json())
-                .then(geo => {
+                .then(r => r.json()).then(geo => {
                     L.geoJson(geo, {
-                        style: (f) => ({
-                            fillColor: getIntensityColor(provMapData[f.properties.name] || 0),
-                            weight: 1, color: 'white', fillOpacity: 0.85
-                        }),
+                        style: (f) => ({ fillColor: getIntensityColor(provStats[f.properties.name]?.rai || 0), weight: 1, color: 'white', fillOpacity: 0.8 }),
                         onEachFeature: (f, l) => {
-                            const v = Math.round(provMapData[f.properties.name] || 0);
-                            l.bindPopup(`<b>จังหวัด: ${f.properties.name}</b><br>พื้นที่เสียหายรวม: ${v.toLocaleString()} ไร่`);
+                            const s = provStats[f.properties.name] || {rai:0, times:0};
+                            l.bindPopup(`<div class='font-sarabun'><b>จังหวัด${f.properties.name}</b><br/>🔥 เกิดเหตุ: ${Math.round(s.times).toLocaleString()} ครั้ง<br/>🏔️ เสียหาย: ${Math.round(s.rai).toLocaleString()} ไร่</div>`);
                         }
                     }).addTo(map);
                 });
 
-            // --- 3. Top 10 Provinces Chart (With Grid Lines) ---
-            const sortedProv = Object.entries(provMapData).sort((a,b) => b[1] - a[1]).slice(0, 10);
+            // 3. กราฟแท่ง Top 10
+            const sorted = Object.entries(provStats).sort((a,b) => b[1].rai - a[1].rai).slice(0, 10);
             new Chart(document.getElementById('provinceChart'), {
                 type: 'bar',
                 data: {
-                    labels: sortedProv.map(p => p[0]),
-                    datasets: [{
-                        label: 'พื้นที่เสียหาย (ไร่)',
-                        data: sortedProv.map(p => p[1]),
-                        backgroundColor: '#ef4444',
-                        borderRadius: 12
-                    }]
+                    labels: sorted.map(p => p[0]),
+                    datasets: [
+                        { label: 'พื้นที่ (ไร่)', data: sorted.map(p => p[1].rai), backgroundColor: '#ef4444', borderRadius: 5 },
+                        { label: 'จำนวนครั้ง', data: sorted.map(p => p[1].times), backgroundColor: '#f97316', borderRadius: 5 }
+                    ]
                 },
-                options: {
-                    indexAxis: 'y',
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { 
-                            grid: { color: 'rgba(0,0,0,0.05)', display: true }, // เส้นพื้นหลังแนวตั้ง
-                            ticks: { font: { size: 10 } }
-                        },
-                        y: { 
-                            grid: { display: false }, // ซ่อนเส้นแนวนอนเพื่อให้ดูคลีน
-                            ticks: { font: { weight: 'bold' } }
-                        }
-                    }
+                options: { 
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false, 
+                    plugins: { legend: { labels: { font: { family: 'Sarabun' } } } } 
                 }
             });
 
-            // --- 4. Yearly Trend Chart ---
+            // 4. กราฟแนวโน้มรายปี
             const years = [...new Set(data.map(d => d.TIME_PERIOD))].sort();
             new Chart(document.getElementById('trendChart'), {
                 type: 'line',
@@ -184,34 +165,49 @@
                     labels: years,
                     datasets: [
                         { label: 'จำนวนครั้ง', data: years.map(y => timesData.filter(d => d.TIME_PERIOD === y).reduce((s,d) => s+d.OBS_VALUE,0)), borderColor: '#f97316', backgroundColor: '#f97316', tension: 0.4 },
-                        { label: 'พื้นที่ (ไร่)', data: years.map(y => raiData.filter(d => d.TIME_PERIOD === y).reduce((s,d) => s+d.OBS_VALUE,0)), borderColor: '#ef4444', backgroundColor: '#ef4444', tension: 0.4, yAxisID: 'y1' }
+                        { label: 'พื้นที่เสียหาย (ไร่)', data: years.map(y => raiData.filter(d => d.TIME_PERIOD === y).reduce((s,d) => s+d.OBS_VALUE,0)), borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, tension: 0.4, yAxisID: 'y1' }
                     ]
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
+                options: { 
+                    responsive: true, maintainAspectRatio: false, 
                     scales: { 
-                        y: { grid: { color: 'rgba(0,0,0,0.03)' } },
-                        y1: { position: 'right', grid: { display: false } }
-                    }
+                        y: { title: { display: true, text: 'จำนวนครั้ง' } }, 
+                        y1: { position: 'right', title: { display: true, text: 'พื้นที่ (ไร่)' }, grid: { display: false } } 
+                    },
+                    plugins: { legend: { labels: { font: { family: 'Sarabun', weight: 'bold' } } } }
                 }
             });
 
-            // --- 5. Region Chart ---
-            const regions = [...new Set(data.map(d => d.Area))].filter(r => r);
-            new Chart(document.getElementById('regionChart'), {
+            // 5. กราฟวงกลมรายภูมิภาค
+            const rawRegions = [...new Set(data.map(d => d.Area))].filter(r => r);
+            const regColors = ['#1e293b', '#e11d48', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];
+            
+            // สร้าง Legend ภาษาไทย
+            const legendDiv = document.getElementById('custom-legend');
+            rawRegions.forEach((reg, i) => {
+                legendDiv.innerHTML += `
+                    <div class="flex items-center gap-2 bg-white px-5 py-2 rounded-xl border border-slate-100 shadow-sm">
+                        <div class="w-4 h-4 rounded-full" style="background:${regColors[i]}"></div>
+                        <span class="text-sm font-bold text-slate-700">${translateRegion(reg)}</span>
+                    </div>`;
+            });
+
+            const pieOpt = { 
+                responsive: true, maintainAspectRatio: false, cutout: '70%', 
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` ${translateRegion(ctx.label)}: ${ctx.raw.toLocaleString()}` } } } 
+            };
+            
+            new Chart(document.getElementById('regionTimesChart'), {
                 type: 'doughnut',
-                data: {
-                    labels: regions,
-                    datasets: [{
-                        data: regions.map(r => raiData.filter(d => d.Area === r).reduce((s, d) => s + d.OBS_VALUE, 0)),
-                        backgroundColor: ['#0f172a', '#e11d48', '#f59e0b', '#10b981', '#6366f1']
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+                data: { labels: rawRegions, datasets: [{ data: rawRegions.map(r => timesData.filter(d => d.Area === r).reduce((s,d) => s+d.OBS_VALUE, 0)), backgroundColor: regColors }] },
+                options: pieOpt
+            });
+            new Chart(document.getElementById('regionRaiChart'), {
+                type: 'doughnut',
+                data: { labels: rawRegions, datasets: [{ data: rawRegions.map(r => raiData.filter(d => d.Area === r).reduce((s,d) => s+d.OBS_VALUE, 0)), backgroundColor: regColors }] },
+                options: pieOpt
             });
         }
     </script>
 </body>
-
 </html>
