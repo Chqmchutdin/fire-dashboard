@@ -35,7 +35,7 @@
         }
 
         .dashboard-card:hover {
-            shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
         }
 
         .kpi-label {
@@ -53,7 +53,7 @@
 
         <header class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6">
             <div>
-                <h1 class="text-4xl font-black tracking-tight text-slate-900 mb-2">สถิติวิเคราะห์ไฟป่าระดับประเทศ (พ.ศ. 2542 - 2566)</h1>
+                <h1 class="text-4xl font-black tracking-tight text-slate-900 mb-2">สถิติวิเคราะห์ไฟป่าระดับประเทศ</h1>
                 <p class="text-slate-500 font-medium text-lg">ฐานข้อมูลภาพรวมรายปี รายจังหวัด และรายภูมิภาค</p>
             </div>
             <div class="flex flex-wrap gap-4">
@@ -80,11 +80,27 @@
                 <div id="map"></div>
             </div>
             <div class="col-span-12 lg:col-span-5 dashboard-card">
-                <h3 class="text-xl font-bold mb-6 italic text-red-600">🏆 10 อันดับจังหวัดวิกฤตที่สุด</h3>
+                <h3 class="text-xl font-bold mb-6 italic text-red-600">🏆 10 อันดับจังหวัดวิกฤตที่สุด (ข้อมูลสถิติ)</h3>
                 <div class="h-[430px]">
                     <canvas id="provinceChart"></canvas>
                 </div>
             </div>
+        </div>
+
+        <div class="dashboard-card mb-8 border-t-4 border-indigo-500">
+            <div class="flex justify-between items-center mb-8">
+                <h3 class="text-xl font-bold italic text-indigo-700">🔮 การพยากรณ์การเกิดไฟป่า (Predicted Fires) ปี 2567
+                </h3>
+                <span
+                    class="bg-indigo-100 text-indigo-600 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest">Machine
+                    Learning Results</span>
+            </div>
+            <div class="h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                <div id="chart-container" style="position: relative; height: 1500px;"> <canvas
+                        id="predictionChart"></canvas>
+                </div>
+            </div>
+            <p class="mt-4 text-slate-400 text-xs text-center">ข้อมูลนี้มาจากการพยากรณ์ด้วยโมเดล Machine Learning</p>
         </div>
 
         <div class="dashboard-card mb-8">
@@ -116,7 +132,6 @@
                         สัดส่วนตามพื้นที่เสียหาย (ไร่)</div>
                 </div>
             </div>
-
             <div id="custom-legend" class="mt-16 flex flex-wrap justify-center gap-4 pt-10 border-t border-slate-100">
             </div>
         </div>
@@ -127,7 +142,6 @@
     </div>
 
     <script>
-        // ฟังก์ชันแปลชื่อภาค
         const translateRegion = (reg) => {
             const mapping = {
                 'Northeastern': 'ภาคตะวันออกเฉียงเหนือ',
@@ -142,9 +156,16 @@
             return d > 100000 ? '#7f1d1d' : d > 50000 ? '#b91c1c' : d > 20000 ? '#dc2626' : d > 5000 ? '#f97316' : '#f1f5f9';
         }
 
+        // โหลดข้อมูลหลัก
         Papa.parse("cleaned_fire_data.csv", {
             download: true, header: true, dynamicTyping: true,
             complete: function (res) { renderDashboard(res.data); }
+        });
+
+        // โหลดข้อมูลพยากรณ์ (ML)
+        Papa.parse("Fire_Prediction_2567_for_Looker.csv", {
+            download: true, header: true, dynamicTyping: true,
+            complete: function (res) { renderPrediction(res.data); }
         });
 
         function renderDashboard(data) {
@@ -162,19 +183,12 @@
             timesData.forEach(d => { if (d.Province && provStats[d.Province.trim()]) provStats[d.Province.trim()].times += d.OBS_VALUE; });
 
             // 2. Map
-            // 2. Map (แก้ไขส่วนการเชื่อมโยงชื่อจังหวัด)
             const map = L.map('map', { zoomControl: false }).setView([13.8, 100.5], 6);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-            // เพิ่มตัวเชื่อมชื่อจังหวัดที่สะกดต่างกันระหว่าง CSV และ GeoJSON
             const provinceFix = {
-                "Buri Ram": "Buriram",
-                "Chon Buri": "Chonburi",
-                "Lop Buri": "Lopburi",
-                "Prachin Buri": "Prachinburi",
-                "Si Sa Ket": "Sisaket",
-                "Phra Nakhon Si Ayutthaya": "Ayutthaya"
-                // สามารถเพิ่มชื่ออื่นๆ ที่สีไม่ขึ้นได้ในรูปแบบ "ชื่อในCSV": "ชื่อในแผนที่"
+                "Buri Ram": "Buriram", "Chon Buri": "Chonburi", "Lop Buri": "Lopburi",
+                "Prachin Buri": "Prachinburi", "Si Sa Ket": "Sisaket", "Phra Nakhon Si Ayutthaya": "Ayutthaya"
             };
 
             fetch('https://raw.githubusercontent.com/apisit/thailand.json/master/thailand.json')
@@ -182,22 +196,14 @@
                     L.geoJson(geo, {
                         style: (f) => {
                             const mapName = f.properties.name;
-                            // หาชื่อใน CSV ที่ตรงกับแผนที่ (รวมถึงตัวที่แก้ใน provinceFix ด้วย)
                             const csvName = Object.keys(provinceFix).find(key => provinceFix[key] === mapName) || mapName;
                             const val = provStats[csvName]?.rai || 0;
-
-                            return {
-                                fillColor: getIntensityColor(val),
-                                weight: 1,
-                                color: 'white',
-                                fillOpacity: 0.8
-                            };
+                            return { fillColor: getIntensityColor(val), weight: 1, color: 'white', fillOpacity: 0.8 };
                         },
                         onEachFeature: (f, l) => {
                             const mapName = f.properties.name;
                             const csvName = Object.keys(provinceFix).find(key => provinceFix[key] === mapName) || mapName;
                             const s = provStats[csvName] || { rai: 0, times: 0 };
-
                             l.bindPopup(`<div class='font-sarabun'><b>จังหวัด${f.properties.name}</b><br/>🔥 เกิดเหตุ: ${Math.round(s.times).toLocaleString()} ครั้ง<br/>🏔️ เสียหาย: ${Math.round(s.rai).toLocaleString()} ไร่</div>`);
                         }
                     }).addTo(map);
@@ -214,10 +220,7 @@
                         { label: 'จำนวนครั้ง', data: sorted.map(p => p[1].times), backgroundColor: '#f97316', borderRadius: 5 }
                     ]
                 },
-                options: {
-                    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { labels: { font: { family: 'Sarabun' } } } }
-                }
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { font: { family: 'Sarabun' } } } } }
             });
 
             // 4. กราฟแนวโน้มรายปี
@@ -231,48 +234,87 @@
                         { label: 'พื้นที่เสียหาย (ไร่)', data: years.map(y => raiData.filter(d => d.TIME_PERIOD === y).reduce((s, d) => s + d.OBS_VALUE, 0)), borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, tension: 0.4, yAxisID: 'y1' }
                     ]
                 },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    scales: {
-                        y: { title: { display: true, text: 'จำนวนครั้ง' } },
-                        y1: { position: 'right', title: { display: true, text: 'พื้นที่ (ไร่)' }, grid: { display: false } }
-                    },
-                    plugins: { legend: { labels: { font: { family: 'Sarabun', weight: 'bold' } } } }
-                }
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { title: { display: true, text: 'จำนวนครั้ง' } }, y1: { position: 'right', title: { display: true, text: 'พื้นที่ (ไร่)' }, grid: { display: false } } }, plugins: { legend: { labels: { font: { family: 'Sarabun', weight: 'bold' } } } } }
             });
 
-            // 5. กราฟวงกลมรายภูมิภาค
+            // 5. กราฟวงกลมรายภูมิภาค (เพิ่ม % ใน Tooltip)
             const rawRegions = [...new Set(data.map(d => d.Area))].filter(r => r);
             const regColors = ['#1e293b', '#e11d48', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];
-
-            // สร้าง Legend ภาษาไทย
             const legendDiv = document.getElementById('custom-legend');
+            legendDiv.innerHTML = ""; // เคลียร์ของเก่า
             rawRegions.forEach((reg, i) => {
-                legendDiv.innerHTML += `
-                    <div class="flex items-center gap-2 bg-white px-5 py-2 rounded-xl border border-slate-100 shadow-sm">
-                        <div class="w-4 h-4 rounded-full" style="background:${regColors[i]}"></div>
-                        <span class="text-sm font-bold text-slate-700">${translateRegion(reg)}</span>
-                    </div>`;
+                legendDiv.innerHTML += `<div class="flex items-center gap-2 bg-white px-5 py-2 rounded-xl border border-slate-100 shadow-sm"><div class="w-4 h-4 rounded-full" style="background:${regColors[i]}"></div><span class="text-sm font-bold text-slate-700">${translateRegion(reg)}</span></div>`;
             });
 
             const pieOpt = {
-                responsive: true, maintainAspectRatio: false, cutout: '70%',
-                plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` ${translateRegion(ctx.label)}: ${ctx.raw.toLocaleString()}` } } }
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '70%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => {
+                                const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((ctx.raw / total) * 100).toFixed(1);
+                                return ` ${translateRegion(ctx.label)}: ${ctx.raw.toLocaleString()} (${percentage}%)`;
+                            }
+                        }
+                    }
+                }
             };
 
-            new Chart(document.getElementById('regionTimesChart'), {
-                type: 'doughnut',
-                data: { labels: rawRegions, datasets: [{ data: rawRegions.map(r => timesData.filter(d => d.Area === r).reduce((s, d) => s + d.OBS_VALUE, 0)), backgroundColor: regColors }] },
-                options: pieOpt
-            });
-            new Chart(document.getElementById('regionRaiChart'), {
-                type: 'doughnut',
-                data: { labels: rawRegions, datasets: [{ data: rawRegions.map(r => raiData.filter(d => d.Area === r).reduce((s, d) => s + d.OBS_VALUE, 0)), backgroundColor: regColors }] },
-                options: pieOpt
+            new Chart(document.getElementById('regionTimesChart'), { type: 'doughnut', data: { labels: rawRegions, datasets: [{ data: rawRegions.map(r => timesData.filter(d => d.Area === r).reduce((s, d) => s + d.OBS_VALUE, 0)), backgroundColor: regColors }] }, options: pieOpt });
+            new Chart(document.getElementById('regionRaiChart'), { type: 'doughnut', data: { labels: rawRegions, datasets: [{ data: rawRegions.map(r => raiData.filter(d => d.Area === r).reduce((s, d) => s + d.OBS_VALUE, 0)), backgroundColor: regColors }] }, options: pieOpt });
+        }
+
+        // 6. ฟังก์ชันสร้างกราฟพยากรณ์ (ML) - แสดงข้อมูลทั้งหมดที่มีค่ามากกว่า 0
+        function renderPrediction(predictData) {
+            const filteredData = predictData
+                .filter(d => d.Predicted_Fires > 0)
+                .sort((a, b) => b.Predicted_Fires - a.Predicted_Fires);
+
+            // คำนวณความสูงของกราฟอัตโนมัติ: จำนวนจังหวัด * 35px (พื้นที่ต่อ 1 แท่ง)
+            const chartHeight = filteredData.length * 35;
+            document.getElementById('chart-container').style.height = chartHeight + 'px';
+
+            new Chart(document.getElementById('predictionChart'), {
+                type: 'bar',
+                data: {
+                    labels: filteredData.map(d => d.Province_Name),
+                    datasets: [{
+                        label: 'พยากรณ์จำนวนจุดความร้อน (Hotspot)',
+                        data: filteredData.map(d => d.Predicted_Fires),
+                        backgroundColor: 'rgba(79, 70, 229, 0.8)',
+                        borderRadius: 5,
+                        barThickness: 20 // กำหนดขนาดแท่งให้คงที่เพื่อความสวยงาม
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false, // สำคัญมาก: เพื่อให้กราฟยืดตามความสูงที่เราคำนวณ
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { backgroundColor: '#1e293b' }
+                    },
+                    scales: {
+                        x: {
+                            position: 'top', // เอาสเกลตัวเลขไว้ข้างบน เพื่อให้อ่านค่าได้ตลอดเวลาที่เลื่อน
+                            beginAtZero: true,
+                            grid: { color: '#f1f5f9' }
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: {
+                                font: { family: 'Sarabun', size: 12, weight: 'bold' }
+                            }
+                        }
+                    }
+                }
             });
         }
     </script>
 </body>
 
 </html>
-
